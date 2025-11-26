@@ -1,0 +1,41 @@
+
+.sfx-wrap { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color:#0f172a; }
+.sfx-head { margin-bottom: 12px; color:#0f172a; font-weight:600; }
+.sfx-steps { font-size: 13px; color:#6b7280; margin-bottom: 6px; }
+.sfx-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(180px,1fr)); gap: 16px; margin: 14px 0 24px; }
+.sfx-tile { border: 1px solid #e2e8f0; border-radius: 16px; padding: 18px 16px; background:#fff; cursor: pointer; text-align:center; display:flex; flex-direction:column; align-items:center; gap:10px; min-height:140px; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; box-shadow:0 0 0 rgba(15,23,42,0); }
+.sfx-tile:hover,
+.sfx-tile:focus { transform: translateY(-2px); box-shadow:0 12px 24px rgba(15,23,42,0.08); border-color:#93c5fd; }
+.sfx-tile:focus-visible { outline:3px solid rgba(37,99,235,0.35); outline-offset:2px; }
+.sfx-tile.selected { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,99,235,0.18); background:linear-gradient(180deg,#f5f9ff, #fff); }
+.sfx-tile img { width:64px; height:64px; object-fit: contain; display:block; }
+.sfx-avatar { width:64px; height:64px; border-radius:18px; background:linear-gradient(135deg,#dbeafe,#bfdbfe); color:#1e3a8a; font-size:26px; font-weight:600; display:flex; align-items:center; justify-content:center; }
+.sfx-avatar-muted { background:linear-gradient(135deg,#eef2ff,#e2e8f0); color:#334155; }
+.sfx-tile-label { font-size:15px; font-weight:600; color:#0f172a; line-height:1.3; }
+.sfx-main-icon { font-size:26px; font-weight:600; color:#1f2937; }
+.sfx-actions { display:flex; gap:10px; align-items:center; justify-content:flex-end; margin-top: 8px; }
+.sfx-btn { display:inline-flex; align-items:center; justify-content:center; border-radius:10px; background:#1d4ed8; color:#fff; padding:11px 20px; border:none; cursor:pointer; font-weight:600; transition: background .2s ease, transform .2s ease, box-shadow .2s ease; }
+.sfx-btn:hover { background:#1740b5; transform: translateY(-1px); box-shadow:0 10px 20px rgba(29,78,216,0.18); }
+.sfx-btn.secondary { background:#e2e8f0; color:#0f172a; box-shadow:none; }
+.sfx-btn.secondary:hover { background:#cbd5f5; }
+.sfx-tip { font-size: 13px; color:#5b6475; margin: 6px 0 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:8px 12px; }
+.sfx-search { width:100%; padding:10px 12px; border:1px solid #d1d5db; border-radius:10px; margin-bottom: 12px; transition:border-color .18s ease, box-shadow .18s ease; }
+.sfx-search:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,99,235,0.12); outline:none; }
+.sfx-checkbox { display: inline-flex; align-items: center; gap: 10px; border:1px solid #d1d5db; border-radius:12px; padding: 12px 14px; margin: 0 10px 12px 0; cursor:pointer; background:#fff; transition:border-color .18s ease, box-shadow .18s ease, transform .18s ease; }
+.sfx-checkbox:hover { border-color:#93c5fd; box-shadow:0 10px 20px rgba(15,23,42,0.07); transform: translateY(-1px); }
+.sfx-checkbox input { transform: scale(1.1); }
+.sfx-error { color: #b91c1c; font-size: 14px; margin: 6px 0 0; }
+.sfx-row { display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin: 10px 0; }
+.sfx-fallback { background:#f3f4f6; border:1px solid #e5e7eb; border-radius:10px; padding:16px; text-align:center; font-size:14px; color:#4b5563; }
+.sfx-empty { background:#f9fafb; border:1px dashed #d1d5db; padding:18px; border-radius:12px; color:#4b5563; text-align:center; margin:14px 0; }
+.sfx-pagination { display:flex; align-items:center; justify-content:space-between; gap:10px; margin: 12px 0; }
+.sfx-page-btn { border:1px solid #d1d5db; background:#fff; color:#0f172a; padding:9px 16px; border-radius:10px; cursor:pointer; transition: border-color .18s ease, box-shadow .18s ease; }
+.sfx-page-btn:hover { border-color:#93c5fd; box-shadow:0 8px 18px rgba(15,23,42,0.06); }
+.sfx-page-btn[disabled] { opacity:0.55; cursor:not-allowed; box-shadow:none; }
+.sfx-page-info { font-size:13px; color:#6b7280; }
+@media (max-width: 640px) { .sfx-row { grid-template-columns: 1fr; } }
+
+#sfx-estimator{display:block!important;min-height:120px}
+#sfx-estimator .sfx-error-box{background:#fff4f4;border:1px solid #f8caca;color:#b91c1c;padding:12px;border-radius:8px;font-size:14px}
+
+#sfx-estimator noscript{display:block;padding:12px;background:#fff4f4;border:1px solid #f8caca;border-radius:8px;color:#b91c1c}
