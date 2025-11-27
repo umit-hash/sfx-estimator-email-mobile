@@ -671,6 +671,15 @@
       return issues.length > 0;
     }
 
+    function fallbackSeriesFor(type, make) {
+      const t = String(type || '').toLowerCase();
+      const m = String(make || '').toLowerCase();
+      if (t === 'gaming console' && m === 'playstation') {
+        return ['PS5', 'PS4', 'PS3'];
+      }
+      return [];
+    }
+
     function seriesHasModelOptions(type, make, series) {
       if (!type || !make || !series) return false;
       const map = (((state.series_map || {})[type] || {})[make] || {});
@@ -869,12 +878,19 @@
 
     function seriesListFor(type, make) {
       const map = (state.series_map && state.series_map[type] && state.series_map[type][make]) ? state.series_map[type][make] : null;
-      if (!map) return [];
       const banned = ['general', 'any model'];
-      return Object.keys(map).filter(function (name) {
+      const fromCatalog = map ? Object.keys(map).filter(function (name) {
         const key = String(name || '').trim().toLowerCase();
         return key && !banned.includes(key);
+      }) : [];
+      const existing = fromCatalog.map(function (name) {
+        return String(name || '').trim().toLowerCase();
       });
+      const fallback = fallbackSeriesFor(type, make).filter(function (name) {
+        const key = String(name || '').trim().toLowerCase();
+        return key && !banned.includes(key) && !existing.includes(key);
+      });
+      return fromCatalog.concat(fallback);
     }
 
     function modelsForCurrentSelection() {
