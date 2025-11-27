@@ -122,7 +122,7 @@
     function stepTitle() {
       switch (state.step) {
         case 0:
-          return 'Choose your main category';
+          return 'What kind of device do you have?';
         case 1:
           return 'Pick a subcategory (brand)';
         case 2:
