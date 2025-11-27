@@ -13,6 +13,12 @@
       series: null,
       model: null,
       issues: [],
+      first_name: '',
+      last_name: '',
+      phone: '',
+      email: '',
+      notes: '',
+      notify: 'email',
       catalog: null,
       series_map: null,
       issues_all: [],
@@ -481,63 +487,127 @@
     }
 
     function renderContact() {
-      const form = el('div');
+      const form = el('div', { class: 'sfx-contact' });
 
-      const row1 = el('div', { class: 'sfx-row' });
-      const first = el('input', { placeholder: 'First name *', value: state.first_name || '' });
-      const last = el('input', { placeholder: 'Last name', value: state.last_name || '' });
-      row1.appendChild(first);
-      row1.appendChild(last);
-
-      const row2 = el('div', { class: 'sfx-row' });
-      const phone = el('input', { placeholder: 'Phone', value: state.phone || '' });
-      const email = el('input', { placeholder: 'Email', value: state.email || '' });
-      row2.appendChild(phone);
-      row2.appendChild(email);
-
-      const row3 = el('div', { class: 'sfx-row' });
-      const notifyWrap = el('div');
-      const notifyValue = state.notify || 'both';
-      const emailOpt = el('label', { class: 'sfx-checkbox' }, [
-        el('input', { type: 'radio', name: 'notify', value: 'email', checked: notifyValue === 'email' }),
-        'Email me the estimate'
+      const hero = el('div', { class: 'sfx-contact-hero' }, [
+        el('span', { class: 'sfx-contact-chip' }, ['Instant estimate delivery']),
+        el('div', { class: 'sfx-contact-hero-text' }, [
+          el('div', { class: 'sfx-contact-title' }, ['Where should we send your estimate?']),
+          el('p', { class: 'sfx-contact-copy' }, ['We only use your info to share the quote and quick status updates.'])
+        ])
       ]);
-      const smsOpt = el('label', { class: 'sfx-checkbox' }, [
-        el('input', { type: 'radio', name: 'notify', value: 'sms', checked: notifyValue === 'sms' }),
-        'Text me the estimate'
-      ]);
-      const bothOpt = el('label', { class: 'sfx-checkbox' }, [
-        el('input', { type: 'radio', name: 'notify', value: 'both', checked: notifyValue === 'both' }),
-        'Both (email + text)'
-      ]);
-      notifyWrap.appendChild(emailOpt);
-      notifyWrap.appendChild(smsOpt);
-      notifyWrap.appendChild(bothOpt);
-      row3.appendChild(notifyWrap);
+      form.appendChild(hero);
 
-      const notes = el('textarea', {
-        placeholder: 'Notes (optional)',
-        rows: '4',
-        style: 'width:100%; border:1px solid #e5e7eb; border-radius:8px; padding:10px 12px;',
-        html: state.notes || ''
-      });
+      const body = el('div', { class: 'sfx-contact-body' });
+      const fields = el('div', { class: 'sfx-contact-fields' });
 
-      form.appendChild(row1);
-      form.appendChild(row2);
-      form.appendChild(row3);
-      form.appendChild(notes);
+      function buildField(labelText, placeholder, value, required, type = 'text') {
+        const wrapper = el('label', { class: 'sfx-field' });
+        wrapper.appendChild(el('span', { class: 'sfx-field-label' }, [labelText + (required ? ' *' : '')]));
+        const input = el('input', { class: 'sfx-input', type, placeholder, value: value || '' });
+        wrapper.appendChild(input);
+        return { wrapper, input };
+      }
+
+      function buildTextarea(labelText, placeholder, value) {
+        const wrapper = el('label', { class: 'sfx-field' });
+        wrapper.appendChild(el('span', { class: 'sfx-field-label' }, [labelText]));
+        const textarea = el('textarea', { class: 'sfx-textarea', rows: '4', placeholder, html: value || '' });
+        wrapper.appendChild(textarea);
+        return { wrapper, textarea };
+      }
+
+      const namesRow = el('div', { class: 'sfx-contact-grid' });
+      const first = buildField('First name', 'First name', state.first_name, true);
+      const last = buildField('Last name', 'Last name', state.last_name, false);
+      namesRow.appendChild(first.wrapper);
+      namesRow.appendChild(last.wrapper);
+
+      const contactRow = el('div', { class: 'sfx-contact-grid' });
+      const phone = buildField('Phone', 'Best number for text updates', state.phone, false, 'tel');
+      const email = buildField('Email', 'Where should we email the estimate?', state.email, false, 'email');
+      contactRow.appendChild(phone.wrapper);
+      contactRow.appendChild(email.wrapper);
+
+      const notifyWrap = el('div', { class: 'sfx-contact-delivery' });
+      notifyWrap.appendChild(el('div', { class: 'sfx-contact-legend' }, ['Send my estimate via']));
+      const notifyOptions = el('div', { class: 'sfx-contact-options' });
+      const notifyValue = state.notify || 'email';
+
+      function makeNotifyOption(value, title, hint) {
+        const label = el('label', { class: 'sfx-pill' + (notifyValue === value ? ' is-active' : '') });
+        const radio = el('input', { type: 'radio', name: 'notify', value, checked: notifyValue === value });
+        const body = el('div', { class: 'sfx-pill-body' }, [
+          el('strong', {}, [title]),
+          el('small', {}, [hint])
+        ]);
+        label.appendChild(radio);
+        label.appendChild(body);
+        return label;
+      }
+
+      const emailOpt = makeNotifyOption('email', 'Email', 'Detailed breakdown of your quote.');
+      const smsOpt = makeNotifyOption('sms', 'Text', 'Quick status pings and directions.');
+      const bothOpt = makeNotifyOption('both', 'Email + text', 'Best if you want both confirmations.');
+      notifyOptions.appendChild(emailOpt);
+      notifyOptions.appendChild(smsOpt);
+      notifyOptions.appendChild(bothOpt);
+      notifyWrap.appendChild(notifyOptions);
+
+      const notes = buildTextarea('Notes (optional)', 'Anything we should know about your device or schedule?', state.notes);
+
+      fields.appendChild(namesRow);
+      fields.appendChild(contactRow);
+      fields.appendChild(notifyWrap);
+      fields.appendChild(notes.wrapper);
+
+      body.appendChild(fields);
+
+      const summary = el('div', { class: 'sfx-contact-summary' });
+      summary.appendChild(el('div', { class: 'sfx-contact-summary-title' }, ['You’re getting help for']));
+      const summaryList = el('ul', { class: 'sfx-summary-list' });
+      const modelText = state.model || (shouldSkipModelSelection(state.type, state.make) ? 'Any Model' : '');
+      const deviceLine = [state.type, state.make, modelText].filter(Boolean).join(' • ');
+      summaryList.appendChild(el('li', {}, [
+        el('span', { class: 'sfx-summary-label' }, ['Device']),
+        el('span', { class: 'sfx-summary-value' }, [deviceLine || 'Device not selected yet'])
+      ]));
+      const issuesText = (state.issues && state.issues.length) ? state.issues.join(', ') : 'Issue list will appear here';
+      summaryList.appendChild(el('li', {}, [
+        el('span', { class: 'sfx-summary-label' }, ['Issues']),
+        el('span', { class: 'sfx-summary-value' }, [issuesText])
+      ]));
+      const notifyCopy = { email: 'Email delivery', sms: 'Text delivery', both: 'Email + text' }[notifyValue] || 'Email + text';
+      summaryList.appendChild(el('li', {}, [
+        el('span', { class: 'sfx-summary-label' }, ['Delivery']),
+        el('span', { class: 'sfx-summary-value' }, [notifyCopy])
+      ]));
+      summary.appendChild(summaryList);
+      summary.appendChild(el('p', { class: 'sfx-summary-footnote' }, ['Same-day turnaround on most repairs. Walk-ins welcome.']));
+
+      body.appendChild(summary);
+
+      form.appendChild(body);
       rootEl.appendChild(form);
       rootEl.appendChild(actions());
 
-      form.addEventListener('input', () => {
-        state.first_name = first.value.trim();
-        state.last_name = last.value.trim();
-        state.phone = phone.value.trim();
-        state.email = email.value.trim();
-        state.notes = notes.value.trim();
+      function syncFormState() {
+        state.first_name = first.input.value.trim();
+        state.last_name = last.input.value.trim();
+        state.phone = phone.input.value.trim();
+        state.email = email.input.value.trim();
+        state.notes = notes.textarea.value.trim();
         const selected = form.querySelector('input[name=notify]:checked');
         state.notify = selected ? selected.value : 'both';
-      });
+        [emailOpt, smsOpt, bothOpt].forEach(label => {
+          const input = label.querySelector('input');
+          label.classList.toggle('is-active', input && input.checked);
+        });
+      }
+
+      form.addEventListener('input', syncFormState);
+      form.addEventListener('change', syncFormState);
+      syncFormState();
     }
 
     async function submit() {
