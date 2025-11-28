@@ -2465,6 +2465,51 @@ function sfx_estimator_build_sms_message($payload, $variant = 'primary') {
     $price = $payload['price'] ?? array();
     $links = $payload['links']['maps'] ?? array();
 
+    // Simplified transactional SMS to reduce carrier filtering (e.g., 30007).
+    $store_name = trim((string) ($store['name'] ?? 'Fast Repair'));
+    $estimate_ref = $payload['estimate_ref'] ?? ($payload['estimate_id'] ?? '');
+    $issues = $payload['issues'] ?? array();
+    $primary_issue = '';
+    if (!empty($issues)) {
+        $primary_issue = trim((string) $issues[0]);
+    }
+    if ($primary_issue === '' && !empty($payload['issue'])) {
+        $primary_issue = trim((string) $payload['issue']);
+    }
+    $issue_phrase = $primary_issue !== '' ? $primary_issue : 'repair';
+    $device_label = trim((string) ($device['model'] ?? ''));
+    if ($device_label === '') {
+        $device_label = trim(($device['brand'] ?? '') . ' ' . ($device['family'] ?? 'device'));
+    }
+    $short_link = '';
+    if (!empty($links['sms']['short_url'])) {
+        $short_link = $links['sms']['short_url'];
+    } elseif (!empty($store['maps_short_links']['sms'])) {
+        $short_link = $store['maps_short_links']['sms'];
+    } elseif (!empty($store['maps_link'])) {
+        $short_link = $store['maps_link'];
+    } elseif (!empty($store['website'])) {
+        $short_link = $store['website'];
+    }
+    $price_total = isset($price['total']) ? number_format((float) $price['total'], 2) : '0.00';
+    $stop_clause = 'Reply STOP to opt out, HELP for help.';
+    if ($variant === 'nudge') {
+        $line1 = sprintf('%s: estimate %s for %s (%s) is ready.', $store_name ?: 'Fast Repair', $estimate_ref ?: '', $device_label, $issue_phrase);
+    } elseif ($variant === 'final') {
+        $line1 = sprintf('%s: final reminder ticket %s (%s) est $%s.', $store_name ?: 'Fast Repair', $estimate_ref ?: '', $issue_phrase, $price_total);
+    } else {
+        $line1 = sprintf('%s: ticket %s for %s (%s) est $%s.', $store_name ?: 'Fast Repair', $estimate_ref ?: '', $device_label, $issue_phrase, $price_total);
+    }
+    $line2 = $short_link ? ('Directions: ' . $short_link) : '';
+    $message = trim($line1 . ' ' . $line2 . ' ' . $stop_clause);
+    $message = sfx_estimator_normalize_sms_text($message);
+    $encoding = sfx_estimator_detect_sms_encoding($message);
+    $segments = sfx_estimator_count_sms_segments($message, $encoding);
+    return apply_filters('sfx_estimator_sms_message', $message, $payload, $variant, array(
+        'encoding' => $encoding,
+        'segments' => $segments,
+    ));
+
     $name = trim((string) ($customer['first_name'] ?? ''));
     if ($name === '') {
         $name = 'there';
