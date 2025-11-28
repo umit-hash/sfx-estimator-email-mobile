@@ -2712,7 +2712,7 @@ function sfx_estimator_post_quote($request) {
     $last  = sanitize_text_field($params['last_name'] ?? '');
     $phone = sanitize_text_field($params['phone'] ?? '');
     $email = sanitize_email($params['email'] ?? '');
-    $notify= sanitize_text_field($params['notify'] ?? 'both'); // email|sms|both
+    $notify= 'both'; // Force email + SMS delivery
     $type  = sanitize_text_field($params['device_type'] ?? '');
     $make  = sanitize_text_field($params['make'] ?? '');
     $series= sanitize_text_field($params['series'] ?? '');
@@ -2805,7 +2805,7 @@ function sfx_estimator_post_quote($request) {
         remove_all_filters('wp_mail_from_name');
     }
 
-    if (($notify === 'sms' || $notify === 'both') && !empty($opt['twilio_sid']) && !empty($opt['twilio_token']) && !empty($opt['twilio_from'])) {
+    if (!empty($opt['twilio_sid']) && !empty($opt['twilio_token']) && !empty($opt['twilio_from'])) {
         $to_number = $tokens['phone_e164'] ?: sfx_estimator_sanitize_e164($phone);
         if ($to_number) {
             $sms = sfx_estimator_build_sms_message($payload, 'primary');
