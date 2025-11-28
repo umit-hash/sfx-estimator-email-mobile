@@ -173,6 +173,7 @@ SMS;
         'business_name' => get_bloginfo('name') ?: 'Fast Repair',
         'store_phone'   => '(916) 477-5995',
         'store_phone_e164' => '+19164775995',
+        'default_country_code' => '',
         'store_address' => '4424 Freeport Blvd, Suite 4, Sacramento, CA 95822',
         'store_address_line1' => '4424 Freeport Blvd, Suite 4',
         'store_city'    => 'Sacramento',
@@ -212,6 +213,57 @@ SMS;
     );
 }
 
+function sfx_estimator_guess_country_code_from_number($number) {
+    $digits = preg_replace('/\D/', '', (string) $number);
+    if ($digits === '') {
+        return '';
+    }
+    // NANP-style (US/CA) numbers usually arrive as 11 digits starting with 1.
+    if (strlen($digits) === 11 && $digits[0] === '1') {
+        return '1';
+    }
+    // Heuristic for non-NANP: prefer a 2–3 digit country code when the number is longer.
+    if (strlen($digits) >= 13) {
+        return substr($digits, 0, 3);
+    }
+    if (strlen($digits) >= 11) {
+        return substr($digits, 0, 2);
+    }
+    return '';
+}
+
+function sfx_estimator_get_default_country_code() {
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached;
+    }
+    $code = '';
+    $opt = get_option('sfx_estimator_options');
+    if (is_array($opt)) {
+        $code = isset($opt['default_country_code']) ? preg_replace('/\D/', '', (string) $opt['default_country_code']) : '';
+        if ($code === '') {
+            foreach (array('twilio_from', 'store_phone_e164', 'store_phone') as $key) {
+                if (!empty($opt[$key])) {
+                    $guess = sfx_estimator_guess_country_code_from_number($opt[$key]);
+                    if ($guess !== '') {
+                        $code = $guess;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    if ($code === '') {
+        $code = '1';
+    }
+    $filtered = preg_replace('/\D/', '', (string) apply_filters('sfx_estimator_default_country_code', $code));
+    if ($filtered === '') {
+        $filtered = '1';
+    }
+    $cached = $filtered;
+    return $cached;
+}
+
 function sfx_estimator_sanitize_e164($value) {
     $value = trim((string) $value);
     if ($value === '') {
@@ -233,14 +285,19 @@ function sfx_estimator_sanitize_e164($value) {
         sfx_estimator_debug_log('sanitize_e164_digits_empty', array('input' => sfx_estimator_mask_phone_for_log($value)));
         return '';
     }
+    $default_country = sfx_estimator_get_default_country_code();
     // If the number starts with 00 (international dialing prefix), convert to +.
     if (strpos($digits, '00') === 0) {
         $digits = substr($digits, 2);
     }
+    $removed_trunk_zero = false;
+    if ($digits !== '' && $digits[0] === '0' && strlen($digits) >= 9) {
+        // Strip local trunk prefix (e.g., 0) so we can prepend the default country.
+        $digits = ltrim($digits, '0');
+        $removed_trunk_zero = true;
+    }
     // Auto-prepend a default country code when users omit it (e.g. 10-digit NANP numbers).
-    if (strlen($digits) === 10) {
-        $default_country = (string) apply_filters('sfx_estimator_default_country_code', '1');
-        $default_country = preg_replace('/\D/', '', $default_country);
+    if (($removed_trunk_zero && $default_country !== '') || strlen($digits) === 10) {
         if ($default_country !== '') {
             $digits = $default_country . $digits;
         }
@@ -253,8 +310,33 @@ function sfx_estimator_sanitize_e164($value) {
         'input' => sfx_estimator_mask_phone_for_log($value),
         'result' => sfx_estimator_mask_phone_for_log($result),
         'length' => strlen($digits),
+        'default_country' => $default_country,
+        'trunk_stripped' => $removed_trunk_zero,
     ));
     return $result;
+}
+
+function sfx_estimator_prepare_twilio_sender($raw_from) {
+    $raw_from = trim((string) $raw_from);
+    $sid_pattern = '/^MG[A-Z0-9]{32}$/i';
+    if ($raw_from !== '' && preg_match($sid_pattern, $raw_from)) {
+        return array(
+            'field' => 'MessagingServiceSid',
+            'value' => $raw_from,
+            'masked' => $raw_from,
+            'is_sanitized' => true,
+            'type' => 'messaging_service',
+        );
+    }
+    $sanitized = $raw_from !== '' ? sfx_estimator_sanitize_e164($raw_from) : '';
+    $value = $sanitized ?: $raw_from;
+    return array(
+        'field' => 'From',
+        'value' => $value,
+        'masked' => sfx_estimator_mask_phone_for_log($value),
+        'is_sanitized' => (bool) $sanitized,
+        'type' => 'number',
+    );
 }
 
 function sfx_estimator_validate_timezone($tz) {
@@ -736,14 +818,16 @@ function sfx_estimator_handle_sms_followup($quote_id, $stage) {
     $payload = $context['payload'];
     $message = sfx_estimator_build_sms_message($payload, $stage_key === 'nudge' ? 'nudge' : 'final');
 
-    $from_number = sfx_estimator_sanitize_e164($opt['twilio_from']);
-    if (!$from_number) {
-        $from_number = $opt['twilio_from'];
+    $sender = sfx_estimator_prepare_twilio_sender($opt['twilio_from']);
+    if ($sender['value'] === '') {
+        return;
     }
 
     $url = 'https://api.twilio.com/2010-04-01/Accounts/' . rawurlencode($opt['twilio_sid']) . '/Messages.json';
+    $body = array('To' => $to_number, 'Body' => $message);
+    $body[$sender['field']] = $sender['value'];
     $args = array(
-        'body' => array('To' => $to_number, 'From' => $from_number, 'Body' => $message),
+        'body' => $body,
         'headers' => array('Authorization' => 'Basic ' . base64_encode($opt['twilio_sid'] . ':' . $opt['twilio_token'])),
         'timeout' => 20,
     );
@@ -1228,6 +1312,9 @@ function sfx_estimator_render_admin() {
         $opt['business_name'] = sanitize_text_field($_POST['business_name'] ?? '');
         $opt['store_phone']   = sanitize_text_field($_POST['store_phone'] ?? '');
         $opt['store_phone_e164'] = sfx_estimator_sanitize_e164($_POST['store_phone_e164'] ?? ($opt['store_phone_e164'] ?? ''));
+        $country_code_raw = sanitize_text_field($_POST['default_country_code'] ?? ($opt['default_country_code'] ?? ''));
+        $country_code_digits = preg_replace('/\D/', '', $country_code_raw);
+        $opt['default_country_code'] = $country_code_digits !== '' ? $country_code_digits : '';
         $opt['store_address'] = sanitize_text_field($_POST['store_address'] ?? '');
         $opt['store_address_line1'] = sanitize_text_field($_POST['store_address_line1'] ?? ($opt['store_address_line1'] ?? ''));
         $opt['store_city']    = sanitize_text_field($_POST['store_city'] ?? ($opt['store_city'] ?? ''));
@@ -1362,6 +1449,7 @@ function sfx_estimator_render_admin() {
                 <tr><th>Business Name</th><td><input type="text" name="business_name" value="<?php echo esc_attr($opt['business_name']); ?>" class="regular-text" /></td></tr>
                 <tr><th>Store Phone (display)</th><td><input type="text" name="store_phone" value="<?php echo esc_attr($opt['store_phone']); ?>" class="regular-text" placeholder="(916) 477-5995"/></td></tr>
                 <tr><th>Store Phone (E.164)</th><td><input type="text" name="store_phone_e164" value="<?php echo esc_attr($opt['store_phone_e164']); ?>" class="regular-text" placeholder="+19164775995"/><p class="description">Used for tappable links and carrier compliance.</p></td></tr>
+                <tr><th>Default Country Code (SMS)</th><td><input type="text" name="default_country_code" value="<?php echo esc_attr($opt['default_country_code']); ?>" class="regular-text" style="max-width:140px;" placeholder="1"/><p class="description">Prepended when visitors enter local numbers without +country. Examples: 1 (US/CA), 44 (UK), 90 (TR).</p></td></tr>
                 <tr><th>Address (display)</th><td><input type="text" name="store_address" value="<?php echo esc_attr($opt['store_address']); ?>" class="regular-text" placeholder="4424 Freeport Blvd, Suite 4, Sacramento, CA 95822"/></td></tr>
                 <tr><th>Address Line 1</th><td><input type="text" name="store_address_line1" value="<?php echo esc_attr($opt['store_address_line1']); ?>" class="regular-text" placeholder="4424 Freeport Blvd, Suite 4"/></td></tr>
                 <tr><th>City / Region / Postal</th><td>
@@ -2721,13 +2809,19 @@ function sfx_estimator_post_quote($request) {
         $to_number = $tokens['phone_e164'] ?: sfx_estimator_sanitize_e164($phone);
         if ($to_number) {
             $sms = sfx_estimator_build_sms_message($payload, 'primary');
-            $from_number = sfx_estimator_sanitize_e164($opt['twilio_from']);
-            if (!$from_number) {
+            $sender = sfx_estimator_prepare_twilio_sender($opt['twilio_from']);
+            if ($sender['value'] === '') {
                 sfx_estimator_debug_log('twilio_sms_invalid_from_number', array(
                     'estimate_id' => $payload['estimate_id'],
                     'raw_from' => sfx_estimator_mask_phone_for_log($opt['twilio_from']),
                 ));
-                $from_number = $opt['twilio_from'];
+                error_log('Twilio SMS skipped: missing From/MessagingServiceSid for estimate ' . $payload['estimate_id']);
+                $sender = null;
+            } elseif ($sender['field'] === 'From' && !$sender['is_sanitized']) {
+                sfx_estimator_debug_log('twilio_sms_invalid_from_number', array(
+                    'estimate_id' => $payload['estimate_id'],
+                    'raw_from' => sfx_estimator_mask_phone_for_log($opt['twilio_from']),
+                ));
             }
             $segments = sfx_estimator_count_sms_segments($sms);
             $body_length = function_exists('mb_strlen') ? mb_strlen($sms, 'UTF-8') : strlen($sms);
@@ -2736,55 +2830,59 @@ function sfx_estimator_post_quote($request) {
                 'quote_id' => $quote_id,
                 'notify' => $notify,
                 'to' => sfx_estimator_mask_phone_for_log($to_number),
-                'from' => sfx_estimator_mask_phone_for_log($from_number),
+                'from' => $sender ? ($sender['field'] === 'MessagingServiceSid' ? 'MessagingService:' . $sender['value'] : $sender['masked']) : '',
                 'segments' => $segments,
                 'body_length' => $body_length,
             ));
-            $url = 'https://api.twilio.com/2010-04-01/Accounts/' . rawurlencode($opt['twilio_sid']) . '/Messages.json';
-            $args = array(
-                'body' => array('To' => $to_number, 'From' => $from_number, 'Body' => $sms),
-                'headers' => array('Authorization' => 'Basic ' . base64_encode($opt['twilio_sid'] . ':' . $opt['twilio_token'])),
-                'timeout' => 20,
-            );
-            $resp = wp_remote_post($url, $args);
-            if (is_wp_error($resp)) {
-                error_log('Twilio SMS error: ' . $resp->get_error_message());
-                sfx_estimator_debug_log('twilio_sms_request_error', array(
-                    'estimate_id' => $payload['estimate_id'],
-                    'error' => $resp->get_error_message(),
-                ));
-            } else {
-                $http_code = (int) wp_remote_retrieve_response_code($resp);
-                $resp_body = wp_remote_retrieve_body($resp);
-                $resp_json = json_decode($resp_body, true);
-                if ($http_code >= 200 && $http_code < 300) {
-                    $sid = is_array($resp_json) && isset($resp_json['sid']) ? $resp_json['sid'] : '';
-                    sfx_estimator_debug_log('twilio_sms_sent', array(
+            if ($sender) {
+                $url = 'https://api.twilio.com/2010-04-01/Accounts/' . rawurlencode($opt['twilio_sid']) . '/Messages.json';
+                $body = array('To' => $to_number, 'Body' => $sms);
+                $body[$sender['field']] = $sender['value'];
+                $args = array(
+                    'body' => $body,
+                    'headers' => array('Authorization' => 'Basic ' . base64_encode($opt['twilio_sid'] . ':' . $opt['twilio_token'])),
+                    'timeout' => 20,
+                );
+                $resp = wp_remote_post($url, $args);
+                if (is_wp_error($resp)) {
+                    error_log('Twilio SMS error: ' . $resp->get_error_message());
+                    sfx_estimator_debug_log('twilio_sms_request_error', array(
                         'estimate_id' => $payload['estimate_id'],
-                        'quote_id' => $quote_id,
-                        'http_code' => $http_code,
-                        'sid' => $sid,
+                        'error' => $resp->get_error_message(),
                     ));
-                    sfx_estimator_schedule_sms_followups($quote_id, $payload['estimate_id']);
-                    sfx_estimator_update_followup_stage($quote_id, 'primary_sent');
                 } else {
-                    $twilio_code = is_array($resp_json) && isset($resp_json['code']) ? $resp_json['code'] : null;
-                    $twilio_message = is_array($resp_json) && isset($resp_json['message']) ? $resp_json['message'] : '';
-                    $twilio_more = is_array($resp_json) && isset($resp_json['more_info']) ? $resp_json['more_info'] : '';
-                    sfx_estimator_debug_log('twilio_sms_api_error', array(
-                        'estimate_id' => $payload['estimate_id'],
-                        'quote_id' => $quote_id,
-                        'http_code' => $http_code,
-                        'twilio_code' => $twilio_code,
-                        'twilio_message' => $twilio_message,
-                        'twilio_more_info' => sfx_estimator_trim_for_log($twilio_more),
-                        'response' => sfx_estimator_trim_for_log($resp_body),
-                    ));
-                    $extra = '';
-                    if ($twilio_code || $twilio_message) {
-                        $extra = sprintf(' (Twilio %s: %s)', $twilio_code ?: 'n/a', $twilio_message);
+                    $http_code = (int) wp_remote_retrieve_response_code($resp);
+                    $resp_body = wp_remote_retrieve_body($resp);
+                    $resp_json = json_decode($resp_body, true);
+                    if ($http_code >= 200 && $http_code < 300) {
+                        $sid = is_array($resp_json) && isset($resp_json['sid']) ? $resp_json['sid'] : '';
+                        sfx_estimator_debug_log('twilio_sms_sent', array(
+                            'estimate_id' => $payload['estimate_id'],
+                            'quote_id' => $quote_id,
+                            'http_code' => $http_code,
+                            'sid' => $sid,
+                        ));
+                        sfx_estimator_schedule_sms_followups($quote_id, $payload['estimate_id']);
+                        sfx_estimator_update_followup_stage($quote_id, 'primary_sent');
+                    } else {
+                        $twilio_code = is_array($resp_json) && isset($resp_json['code']) ? $resp_json['code'] : null;
+                        $twilio_message = is_array($resp_json) && isset($resp_json['message']) ? $resp_json['message'] : '';
+                        $twilio_more = is_array($resp_json) && isset($resp_json['more_info']) ? $resp_json['more_info'] : '';
+                        sfx_estimator_debug_log('twilio_sms_api_error', array(
+                            'estimate_id' => $payload['estimate_id'],
+                            'quote_id' => $quote_id,
+                            'http_code' => $http_code,
+                            'twilio_code' => $twilio_code,
+                            'twilio_message' => $twilio_message,
+                            'twilio_more_info' => sfx_estimator_trim_for_log($twilio_more),
+                            'response' => sfx_estimator_trim_for_log($resp_body),
+                        ));
+                        $extra = '';
+                        if ($twilio_code || $twilio_message) {
+                            $extra = sprintf(' (Twilio %s: %s)', $twilio_code ?: 'n/a', $twilio_message);
+                        }
+                        error_log('Twilio SMS error HTTP: ' . $http_code . $extra);
                     }
-                    error_log('Twilio SMS error HTTP: ' . $http_code . $extra);
                 }
             }
         } else {
