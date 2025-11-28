@@ -211,7 +211,7 @@
       if (state.step > 0) {
         wrapper.appendChild(el('button', { class: 'sfx-btn secondary', type: 'button' }, ['Back']));
       }
-      wrapper.appendChild(el('button', { class: 'sfx-btn', type: 'button' }, [state.step === 5 ? 'Submit' : 'Next']));
+      wrapper.appendChild(el('button', { class: 'sfx-btn', type: 'button' }, [state.step === 5 ? 'Get my estimate now!' : 'Next']));
       wrapper.addEventListener('click', evt => {
         if (evt.target.tagName !== 'BUTTON') return;
         if (evt.target.textContent === 'Back') back();
@@ -529,36 +529,10 @@
       contactRow.appendChild(phone.wrapper);
       contactRow.appendChild(email.wrapper);
 
-      const notifyWrap = el('div', { class: 'sfx-contact-delivery' });
-      notifyWrap.appendChild(el('div', { class: 'sfx-contact-legend' }, ['Send my estimate via']));
-      const notifyOptions = el('div', { class: 'sfx-contact-options' });
-      const notifyValue = state.notify || 'both';
-
-      function makeNotifyOption(value, title, hint) {
-        const label = el('label', { class: 'sfx-pill' + (notifyValue === value ? ' is-active' : '') });
-        const radio = el('input', { type: 'radio', name: 'notify', value, checked: notifyValue === value });
-        const body = el('div', { class: 'sfx-pill-body' }, [
-          el('strong', {}, [title]),
-          el('small', {}, [hint])
-        ]);
-        label.appendChild(radio);
-        label.appendChild(body);
-        return label;
-      }
-
-      const emailOpt = makeNotifyOption('email', 'Email', 'Detailed breakdown of your quote.');
-      const smsOpt = makeNotifyOption('sms', 'Text', 'Quick status pings and directions.');
-      const bothOpt = makeNotifyOption('both', 'Email + text', 'Best if you want both confirmations.');
-      notifyOptions.appendChild(emailOpt);
-      notifyOptions.appendChild(smsOpt);
-      notifyOptions.appendChild(bothOpt);
-      notifyWrap.appendChild(notifyOptions);
-
       const notes = buildTextarea('Notes (optional)', 'Anything we should know about your device or schedule?', state.notes);
 
       fields.appendChild(namesRow);
       fields.appendChild(contactRow);
-      fields.appendChild(notifyWrap);
       fields.appendChild(notes.wrapper);
 
       body.appendChild(fields);
@@ -577,10 +551,9 @@
         el('span', { class: 'sfx-summary-label' }, ['Issues']),
         el('span', { class: 'sfx-summary-value' }, [issuesText])
       ]));
-      const notifyCopy = { email: 'Email delivery', sms: 'Text delivery', both: 'Email + text' }[notifyValue] || 'Email + text';
       summaryList.appendChild(el('li', {}, [
         el('span', { class: 'sfx-summary-label' }, ['Delivery']),
-        el('span', { class: 'sfx-summary-value' }, [notifyCopy])
+        el('span', { class: 'sfx-summary-value' }, ['Email + text'])
       ]));
       summary.appendChild(summaryList);
       summary.appendChild(el('p', { class: 'sfx-summary-footnote' }, ['Same-day turnaround on most repairs. Walk-ins welcome.']));
@@ -597,12 +570,7 @@
         state.phone = phone.input.value.trim();
         state.email = email.input.value.trim();
         state.notes = notes.textarea.value.trim();
-        const selected = form.querySelector('input[name=notify]:checked');
-        state.notify = selected ? selected.value : 'both';
-        [emailOpt, smsOpt, bothOpt].forEach(label => {
-          const input = label.querySelector('input');
-          label.classList.toggle('is-active', input && input.checked);
-        });
+        state.notify = 'both';
       }
 
       form.addEventListener('input', syncFormState);
@@ -611,13 +579,11 @@
     }
 
     async function submit() {
-      const notify = state.notify || 'both';
-      const needPhone = notify === 'sms' || notify === 'both';
-      const needEmail = notify === 'email' || notify === 'both';
+      const notify = 'both';
       const missing = [];
       if (!state.first_name) missing.push('first name');
-      if (needPhone && !state.phone) missing.push('phone');
-      if (needEmail && !state.email) missing.push('email');
+      if (!state.phone) missing.push('phone');
+      if (!state.email) missing.push('email');
       if (missing.length) {
         alert('Please enter: ' + missing.join(', '));
         return;
