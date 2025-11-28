@@ -3,7 +3,7 @@
  * Plugin Name: SacramentoFix — Instant Estimate
  * Plugin URI: https://sacramentofix.com/estimate/
  * Description: A multi-step instant estimate wizard for repair shops. Type → Make → Series → Model → Issues → Contact, with pricing from Local JSON or Google Sheets.
- * Version: 1.6.9
+ * Version: 1.6.10
  * Author: UmitSahin
  * Author URI: https://sacramentofix.com/
  * Text Domain: sfx-estimator
@@ -13,14 +13,14 @@
 /*
 Plugin Name: SacramentoFix — Instant Estimate Wizard
 Description: Multi-step repair estimate tool with explicit Series step, Media Library images, and Google Sheet support. Shortcode: [sfx_estimator]
-Version: 1.6.9
+Version: 1.6.10
 Author: UmitSahin
 Author URI: https://sacramentofix.com/
 License: GPL-2.0+
 */
 if (!defined('ABSPATH')) exit;
 
-define('SFX_ESTIMATOR_VERSION', '1.6.9');
+define('SFX_ESTIMATOR_VERSION', '1.6.10');
 define('SFX_ESTIMATOR_SLUG', 'sfx-estimator');
 define('SFX_ESTIMATOR_PATH', plugin_dir_path(__FILE__));
 define('SFX_ESTIMATOR_URL', plugin_dir_url(__FILE__));
