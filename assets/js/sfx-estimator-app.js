@@ -18,7 +18,7 @@
       phone: '',
       email: '',
       notes: '',
-      notify: 'email',
+    notify: 'both',
       catalog: null,
       series_map: null,
       issues_all: [],
@@ -564,7 +564,7 @@
       const notifyWrap = el('div', { class: 'sfx-contact-delivery' });
       notifyWrap.appendChild(el('div', { class: 'sfx-contact-legend' }, ['Send my estimate via']));
       const notifyOptions = el('div', { class: 'sfx-contact-options' });
-      const notifyValue = state.notify || 'email';
+      const notifyValue = state.notify || 'both';
 
       function makeNotifyOption(value, title, hint) {
         const label = el('label', { class: 'sfx-pill' + (notifyValue === value ? ' is-active' : '') });
