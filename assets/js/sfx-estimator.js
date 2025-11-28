@@ -211,7 +211,7 @@
       if (state.step > 0) {
         wrapper.appendChild(el('button', { class: 'sfx-btn secondary', type: 'button' }, ['Back']));
       }
-      wrapper.appendChild(el('button', { class: 'sfx-btn', type: 'button' }, [state.step === 5 ? 'Get my estimate now!' : 'Next']));
+      wrapper.appendChild(el('button', { class: 'sfx-btn', type: 'button' }, [state.step === 5 ? 'Get my free estimate!' : 'Next']));
       wrapper.addEventListener('click', evt => {
         if (evt.target.tagName !== 'BUTTON') return;
         if (evt.target.textContent === 'Back') back();
@@ -550,10 +550,6 @@
       summaryList.appendChild(el('li', {}, [
         el('span', { class: 'sfx-summary-label' }, ['Issues']),
         el('span', { class: 'sfx-summary-value' }, [issuesText])
-      ]));
-      summaryList.appendChild(el('li', {}, [
-        el('span', { class: 'sfx-summary-label' }, ['Delivery']),
-        el('span', { class: 'sfx-summary-value' }, ['Email + text'])
       ]));
       summary.appendChild(summaryList);
       summary.appendChild(el('p', { class: 'sfx-summary-footnote' }, ['Same-day turnaround on most repairs. Walk-ins welcome.']));
