@@ -2460,12 +2460,10 @@ function sfx_estimator_shorten_warranty($warranty) {
 function sfx_estimator_build_sms_message($payload, $variant = 'primary') {
     $variant = in_array($variant, array('primary','nudge','final'), true) ? $variant : 'primary';
     $store = $payload['store'] ?? array();
-    $customer = $payload['customer'] ?? array();
     $device = $payload['device'] ?? array();
     $price = $payload['price'] ?? array();
     $links = $payload['links']['maps'] ?? array();
 
-    // Simplified transactional SMS to reduce carrier filtering (e.g., 30007).
     $store_name = trim((string) ($store['name'] ?? 'Fast Repair'));
     $estimate_ref = $payload['estimate_ref'] ?? ($payload['estimate_id'] ?? '');
     $issues = $payload['issues'] ?? array();
@@ -2477,10 +2475,12 @@ function sfx_estimator_build_sms_message($payload, $variant = 'primary') {
         $primary_issue = trim((string) $payload['issue']);
     }
     $issue_phrase = $primary_issue !== '' ? $primary_issue : 'repair';
+
     $device_label = trim((string) ($device['model'] ?? ''));
     if ($device_label === '') {
         $device_label = trim(($device['brand'] ?? '') . ' ' . ($device['family'] ?? 'device'));
     }
+
     $short_link = '';
     if (!empty($links['sms']['short_url'])) {
         $short_link = $links['sms']['short_url'];
@@ -2491,8 +2491,11 @@ function sfx_estimator_build_sms_message($payload, $variant = 'primary') {
     } elseif (!empty($store['website'])) {
         $short_link = $store['website'];
     }
+
     $price_total = isset($price['total']) ? number_format((float) $price['total'], 2) : '0.00';
     $stop_clause = 'Reply STOP to opt out, HELP for help.';
+
+    // Minimal transactional copy to reduce carrier filtering (30007).
     if ($variant === 'nudge') {
         $line1 = sprintf('%s: estimate %s for %s (%s) is ready.', $store_name ?: 'Fast Repair', $estimate_ref ?: '', $device_label, $issue_phrase);
     } elseif ($variant === 'final') {
@@ -2500,207 +2503,12 @@ function sfx_estimator_build_sms_message($payload, $variant = 'primary') {
     } else {
         $line1 = sprintf('%s: ticket %s for %s (%s) est $%s.', $store_name ?: 'Fast Repair', $estimate_ref ?: '', $device_label, $issue_phrase, $price_total);
     }
+
     $line2 = $short_link ? ('Directions: ' . $short_link) : '';
     $message = trim($line1 . ' ' . $line2 . ' ' . $stop_clause);
     $message = sfx_estimator_normalize_sms_text($message);
     $encoding = sfx_estimator_detect_sms_encoding($message);
     $segments = sfx_estimator_count_sms_segments($message, $encoding);
-    return apply_filters('sfx_estimator_sms_message', $message, $payload, $variant, array(
-        'encoding' => $encoding,
-        'segments' => $segments,
-    ));
-
-    $name = trim((string) ($customer['first_name'] ?? ''));
-    if ($name === '') {
-        $name = 'there';
-    }
-
-    $issues = $payload['issues'] ?? array();
-    $primary_issue = '';
-    if (!empty($issues)) {
-        $primary_issue = trim((string) $issues[0]);
-    }
-    if ($primary_issue === '' && !empty($payload['issue'])) {
-        $primary_issue = trim((string) $payload['issue']);
-    }
-    $issue_phrase = $primary_issue !== '' ? $primary_issue : 'repair';
-
-    $device_label = trim((string) ($device['model'] ?? ''));
-    if ($device_label === '') {
-        $device_label = trim(($device['brand'] ?? '') . ' ' . ($device['family'] ?? 'device'));
-    }
-
-    $turnaround = trim((string) ($payload['turnaround_estimate'] ?? 'today'));
-    $warranty = sfx_estimator_shorten_warranty($payload['warranty'] ?? '3-month parts & labor warranty');
-    $is_console_device = !empty($payload['device']['is_console']);
-    $turnaround_sms_full = $payload['turnaround_sms_full'] ?? '';
-    $turnaround_sms_short = $payload['turnaround_sms_short'] ?? '';
-    if ($turnaround_sms_full === '') {
-        $turnaround_sms_full = sprintf('Most fixes done today (often %s) with %s.', $turnaround, $warranty);
-    }
-    if ($turnaround_sms_short === '') {
-        $turnaround_sms_short = sprintf('Fast repairs today with %s.', $warranty);
-    }
-
-    $address_line = $store['address_1'] ?? '';
-    $address_line = str_replace('Suite', 'Ste', $address_line);
-    $address_line = str_replace('Street', 'St', $address_line);
-    $address_city = $store['city'] ?? '';
-    $address_region = $store['region'] ?? '';
-    $address_components = array_filter(array(
-        trim($address_line),
-        trim($address_city),
-        trim($address_region),
-    ));
-    $address_display = implode(', ', $address_components);
-    if ($address_display === '') {
-        $address_display = $store['name'] ?? 'Fast Repair';
-    }
-
-    $short_link = '';
-    if (!empty($links['sms']['short_url'])) {
-        $short_link = $links['sms']['short_url'];
-    } elseif (!empty($store['maps_short_links']['sms'])) {
-        $short_link = $store['maps_short_links']['sms'];
-    } elseif (!empty($store['maps_link'])) {
-        $short_link = $store['maps_link'];
-    } elseif (!empty($store['website'])) {
-        $short_link = $store['website'];
-    }
-
-    $price_total = isset($price['total']) ? number_format((float) $price['total'], 2) : '0.00';
-    $phone_display = $store['phone_display'] ?? '(916) 477-5995';
-    $stop_clause = 'Reply STOP to opt out, HELP for help.';
-    $hours_ctx = $store['hours_context'] ?? array();
-    $is_open_now = isset($hours_ctx['is_open']) ? (bool) $hours_ctx['is_open'] : null;
-    $opens_label = $hours_ctx['opens_label'] ?? '';
-    $issue_notes_sms = $payload['disclaimers']['issues_sms'] ?? array();
-    $issue_note_text = implode(' ', $issue_notes_sms);
-
-    $pieces = array();
-
-    if ($variant === 'primary') {
-        $line1 = sprintf('Fast Repair: %s, your %s %s estimate is $%s.', $name, $device_label, $issue_phrase, $price_total);
-        $line2 = $turnaround_sms_full;
-        $line2_short = $turnaround_sms_short ?: 'Fast repairs today with same-day turnarounds.';
-        if ($is_open_now === false && $opens_label) {
-            if ($short_link) {
-                $line3 = sprintf('We open %s - directions: %s', $opens_label, $short_link);
-            } else {
-                $line3 = sprintf('We open %s - call %s for directions.', $opens_label, $phone_display);
-            }
-        } else {
-            if ($short_link) {
-                $line3 = sprintf('Walk in: %s. Directions: %s', $address_display, $short_link);
-            } else {
-                $line3 = sprintf('Walk in: %s. Call %s for directions.', $address_display, $phone_display);
-            }
-        }
-        $line4 = sprintf('Questions? Reply here or call %s.', $phone_display);
-        $pieces = array(
-            array('text' => $line1, 'optional' => false),
-            array('text' => $line2, 'optional' => true, 'replacement' => $line2_short, 'priority' => 2),
-            array('text' => $line3, 'optional' => false),
-            array('text' => $line4, 'optional' => true, 'priority' => 1),
-            array('text' => $stop_clause, 'optional' => false),
-        );
-    } elseif ($variant === 'nudge') {
-        $line1 = sprintf('Fast Repair: Still need your %s fixed? Your estimate ($%s) is ready.', $device_label, $price_total);
-        if ($is_open_now === false && $opens_label) {
-            if ($short_link) {
-                $line2 = sprintf('We open %s - directions: %s', $opens_label, $short_link);
-                $nudge_replacement = $line2;
-            } else {
-                $line2 = sprintf('We open %s - call %s for directions.', $opens_label, $phone_display);
-                $nudge_replacement = $line2;
-            }
-        } else {
-            if ($is_console_device) {
-                if ($short_link) {
-                    $line2 = sprintf('Console diagnostics are same day; repairs 1-2 days depending on parts. Directions: %s', $short_link);
-                } else {
-                    $line2 = 'Console diagnostics are same day; repairs 1-2 days depending on parts.';
-                }
-                $nudge_replacement = $short_link ? sprintf('Console repairs ready when you are. Directions: %s', $short_link) : 'Console repairs ready when you are.';
-            } else {
-                if ($short_link) {
-                    $line2 = sprintf('We are open for walk-ins - many repairs in %s. Directions: %s', $turnaround, $short_link);
-                } else {
-                    $line2 = sprintf('We are open for walk-ins - many repairs in %s.', $turnaround);
-                }
-                $nudge_replacement = $short_link ? sprintf('Walk-ins welcome. Directions: %s', $short_link) : 'Walk-ins welcome.';
-            }
-        }
-        $line3 = 'Questions? Reply here.';
-        $pieces = array(
-            array('text' => $line1, 'optional' => false),
-            array('text' => $line2, 'optional' => true, 'replacement' => $nudge_replacement, 'priority' => 2),
-            array('text' => $line3, 'optional' => true, 'priority' => 1),
-            array('text' => $stop_clause, 'optional' => false),
-        );
-    } else { // final
-        $line1 = sprintf('Fast Repair: Last reminder for your %s repair estimate ($%s).', $device_label, $price_total);
-        if ($is_open_now === false && $opens_label) {
-            if ($short_link) {
-                $line2 = sprintf('We open %s - directions: %s', $opens_label, $short_link);
-            } else {
-                $line2 = sprintf('We open %s - call %s for directions.', $opens_label, $phone_display);
-            }
-        } else {
-            if ($short_link) {
-                $line2 = sprintf('Walk in when convenient: %s. Directions: %s', $address_display, $short_link);
-            } else {
-                $line2 = sprintf('Walk in when convenient: %s.', $address_display);
-            }
-        }
-        $line3 = 'We are here to help.';
-        $pieces = array(
-            array('text' => $line1, 'optional' => false),
-            array('text' => $line2, 'optional' => false),
-            array('text' => $line3, 'optional' => true, 'priority' => 1, 'replacement' => ''),
-            array('text' => $stop_clause, 'optional' => false),
-        );
-    }
-
-    if ($issue_note_text !== '') {
-        $pieces[] = array('text' => $issue_note_text, 'optional' => true, 'priority' => 0);
-    }
-
-    $message = implode(' ', array_map('trim', array_filter(array_column($pieces, 'text'))));
-    $message = sfx_estimator_normalize_sms_text($message);
-    $encoding = sfx_estimator_detect_sms_encoding($message);
-    $segments = sfx_estimator_count_sms_segments($message, $encoding);
-
-    while ($segments > 2) {
-        $index = null;
-        $best_priority = PHP_INT_MAX;
-        foreach ($pieces as $idx => $piece) {
-            if (empty($piece['optional']) || !empty($piece['removed'])) {
-                continue;
-            }
-            $priority = isset($piece['priority']) ? (int) $piece['priority'] : 5;
-            if ($priority < $best_priority) {
-                $best_priority = $priority;
-                $index = $idx;
-            }
-        }
-        if ($index === null) {
-            break;
-        }
-        if (!empty($pieces[$index]['replacement']) && empty($pieces[$index]['replacement_used'])) {
-            $pieces[$index]['text'] = $pieces[$index]['replacement'];
-            $pieces[$index]['replacement_used'] = true;
-            $pieces[$index]['optional'] = false;
-        } else {
-            $pieces[$index]['text'] = '';
-            $pieces[$index]['removed'] = true;
-            $pieces[$index]['optional'] = false;
-        }
-        $message = implode(' ', array_map('trim', array_filter(array_column($pieces, 'text'))));
-        $message = sfx_estimator_normalize_sms_text($message);
-        $encoding = sfx_estimator_detect_sms_encoding($message);
-        $segments = sfx_estimator_count_sms_segments($message, $encoding);
-    }
 
     return apply_filters('sfx_estimator_sms_message', $message, $payload, $variant, array(
         'encoding' => $encoding,
